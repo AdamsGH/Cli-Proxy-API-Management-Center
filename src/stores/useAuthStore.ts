@@ -48,6 +48,11 @@ export const useAuthStore = create<AuthStoreState>()(
         restoreSessionPromise = (async () => {
           secureStorage.migratePlaintextKeys(['apiBase', 'apiUrl', 'managementKey']);
 
+          // Injected by gateway proxy — takes priority over localStorage
+          const injectedConfig = (window as Window & { __CPA_CONFIG__?: { apiBase?: string; managementKey?: string } }).__CPA_CONFIG__;
+          const injectedBase = injectedConfig?.apiBase;
+          const injectedKey = injectedConfig?.managementKey;
+
           const wasLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
           const legacyBase =
             secureStorage.getItem<string>('apiBase') ||
@@ -55,8 +60,8 @@ export const useAuthStore = create<AuthStoreState>()(
           const legacyKey = secureStorage.getItem<string>('managementKey');
 
           const { apiBase, managementKey, rememberPassword } = get();
-          const resolvedBase = normalizeApiBase(apiBase || legacyBase || detectApiBaseFromLocation());
-          const resolvedKey = managementKey || legacyKey || '';
+          const resolvedBase = normalizeApiBase(injectedBase || apiBase || legacyBase || detectApiBaseFromLocation());
+          const resolvedKey = injectedKey || managementKey || legacyKey || '';
           const resolvedRememberPassword = rememberPassword || Boolean(managementKey) || Boolean(legacyKey);
 
           set({
@@ -66,7 +71,8 @@ export const useAuthStore = create<AuthStoreState>()(
           });
           apiClient.setConfig({ apiBase: resolvedBase, managementKey: resolvedKey });
 
-          if (wasLoggedIn && resolvedBase && resolvedKey) {
+          // Auto-login when key is injected by gateway or was previously saved
+          if (resolvedBase && resolvedKey && (injectedKey || wasLoggedIn)) {
             try {
               await get().login({
                 apiBase: resolvedBase,
