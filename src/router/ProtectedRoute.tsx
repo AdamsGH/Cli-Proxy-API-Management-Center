@@ -6,26 +6,17 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 export function ProtectedRoute({ children }: { children: ReactElement }) {
   const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const managementKey = useAuthStore((state) => state.managementKey);
-  const apiBase = useAuthStore((state) => state.apiBase);
-  const checkAuth = useAuthStore((state) => state.checkAuth);
-  const [checking, setChecking] = useState(false);
+  const restoreSession = useAuthStore((state) => state.restoreSession);
+  // Start in initializing state — don't redirect until restoreSession completes
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    const tryRestore = async () => {
-      if (!isAuthenticated && managementKey && apiBase) {
-        setChecking(true);
-        try {
-          await checkAuth();
-        } finally {
-          setChecking(false);
-        }
-      }
-    };
-    tryRestore();
-  }, [apiBase, isAuthenticated, managementKey, checkAuth]);
+    restoreSession().finally(() => setInitializing(false));
+  // restoreSession is stable (created once by zustand), safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (checking) {
+  if (initializing) {
     return (
       <div className="main-content">
         <LoadingSpinner />
